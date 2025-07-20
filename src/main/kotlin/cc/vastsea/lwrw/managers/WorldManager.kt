@@ -157,6 +157,9 @@ class WorldManager(private val plugin: LightWeightRW) {
             }
         }
 
+        // 清除所有玩家的传送门提示状态
+        plugin.portalListener.clearAllNotifications()
+
         // 重新创建世界，必须在主线程
         val newWorld = if (!Bukkit.isPrimaryThread()) {
             plugin.server.scheduler.callSyncMethod(plugin) {

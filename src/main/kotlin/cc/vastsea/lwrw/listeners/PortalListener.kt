@@ -8,13 +8,19 @@ import org.bukkit.event.Listener
 import org.bukkit.event.player.PlayerPortalEvent
 import org.bukkit.event.player.PlayerTeleportEvent
 import org.bukkit.event.world.PortalCreateEvent
+import java.util.*
 
 class PortalListener(private val plugin: LightWeightRW) : Listener {
+
+    // 存储玩家的提示状态
+    private val netherNotified = mutableSetOf<UUID>()
+    private val endNotified = mutableSetOf<UUID>()
 
     @EventHandler(priority = EventPriority.HIGH)
     fun onPlayerPortal(event: PlayerPortalEvent) {
         val player = event.player
         val fromWorld = event.from.world
+        val playerUUID = player.uniqueId
 
         // 检查是否在资源世界中
         if (fromWorld != null && plugin.worldManager.isResourceWorld(fromWorld)) {
@@ -22,16 +28,24 @@ class PortalListener(private val plugin: LightWeightRW) : Listener {
                 PlayerTeleportEvent.TeleportCause.NETHER_PORTAL -> {
                     if (plugin.configManager.isNetherDisabled()) {
                         event.isCancelled = true
-                        val message = plugin.languageManager.getMessage("portal-nether-disabled", emptyMap())
-                        player.sendMessage(message)
+                        // 只有玩家没有收到过提示时才发送消息
+                        if (!netherNotified.contains(playerUUID)) {
+                            val message = plugin.languageManager.getMessage("portal-nether-disabled", emptyMap())
+                            player.sendMessage(message)
+                            netherNotified.add(playerUUID)
+                        }
                     }
                 }
 
                 PlayerTeleportEvent.TeleportCause.END_PORTAL -> {
                     if (plugin.configManager.isEndDisabled()) {
                         event.isCancelled = true
-                        val message = plugin.languageManager.getMessage("portal-end-disabled", emptyMap())
-                        player.sendMessage(message)
+                        // 只有玩家没有收到过提示时才发送消息
+                        if (!endNotified.contains(playerUUID)) {
+                            val message = plugin.languageManager.getMessage("portal-end-disabled", emptyMap())
+                            player.sendMessage(message)
+                            endNotified.add(playerUUID)
+                        }
                     }
                 }
 
@@ -75,5 +89,13 @@ class PortalListener(private val plugin: LightWeightRW) : Listener {
         return event.blocks.any { blockState ->
             blockState.type == Material.NETHER_PORTAL
         }
+    }
+
+    /**
+     * 清除所有玩家的提示状态（当资源世界重置时调用）
+     */
+    fun clearAllNotifications() {
+        netherNotified.clear()
+        endNotified.clear()
     }
 }

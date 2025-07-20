@@ -19,6 +19,7 @@ class LightWeightRW : JavaPlugin() {
     lateinit var languageManager: LanguageManager
     lateinit var worldManager: WorldManager
     lateinit var resetTask: ResetTask
+    lateinit var portalListener: PortalListener
 
     override fun onEnable() {
         instance = this
@@ -36,11 +37,14 @@ class LightWeightRW : JavaPlugin() {
         // 初始化世界管理器
         worldManager = WorldManager(this)
 
+        // 初始化传送门监听器
+        portalListener = PortalListener(this)
+
         // 注册命令
         getCommand("rw")?.setExecutor(ResourceWorldCommand(this))
 
         // 注册监听器
-        server.pluginManager.registerEvents(PortalListener(this), this)
+        server.pluginManager.registerEvents(portalListener, this)
 
         // 初始化重置任务
         resetTask = ResetTask(this)
