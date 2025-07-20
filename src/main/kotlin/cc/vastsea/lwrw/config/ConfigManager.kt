@@ -20,8 +20,6 @@ class ConfigManager(private val plugin: LightWeightRW) {
         plugin.logger.info("Configuration loaded successfully!")
     }
 
-    fun getConfig(): FileConfiguration = config
-
     // 世界相关配置
     fun getResourceWorldName(): String = config.getString("world.name", "resource_world")!!
 
@@ -33,8 +31,6 @@ class ConfigManager(private val plugin: LightWeightRW) {
 
     // 传送相关配置
     fun getTeleportRadius(): Int = config.getInt("teleport.radius", 1000)
-
-    fun getTeleportCooldown(): Int = config.getInt("teleport.cooldown", 300)
 
     fun getMinY(): Int = config.getInt("teleport.min-y", 64)
 
@@ -52,8 +48,4 @@ class ConfigManager(private val plugin: LightWeightRW) {
     // 语言配置
     fun getDefaultLanguage(): String = config.getString("language.default", "en_US")!!
 
-    fun isPerPlayerLanguage(): Boolean = config.getBoolean("language.per-player", true)
-
-    // 调试配置
-    fun isDebugEnabled(): Boolean = config.getBoolean("debug", false)
 }

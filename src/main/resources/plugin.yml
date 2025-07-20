@@ -9,8 +9,8 @@ website: https://github.com/Snowball-233/LightWeightRW
 commands:
   rw:
     description: Main resource world command
-    usage: /rw [help|tp|reset|reload]
-    aliases: [ resourceworld, lwrs ]
+    usage: /rw [help|tp|reset|reload
+    aliases: [ resourceworld, lwrw, rw ]
     permission: lwrw.use
     permission-message: "§cYou don't have permission to use this command!"
 

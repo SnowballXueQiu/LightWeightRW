@@ -60,7 +60,8 @@
 
 ### 命令别名
 - `/resourceworld`
-- `/lwrs`
+- `/lwrw`
+- `/rw`
 
 ## 权限节点
 

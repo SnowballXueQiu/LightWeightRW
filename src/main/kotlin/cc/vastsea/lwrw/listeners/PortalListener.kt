@@ -22,7 +22,7 @@ class PortalListener(private val plugin: LightWeightRW) : Listener {
                 PlayerTeleportEvent.TeleportCause.NETHER_PORTAL -> {
                     if (plugin.configManager.isNetherDisabled()) {
                         event.isCancelled = true
-                        val message = plugin.languageManager.getMessage("portal-nether-disabled", player)
+                        val message = plugin.languageManager.getMessage("portal-nether-disabled", emptyMap())
                         player.sendMessage(message)
                     }
                 }
@@ -30,7 +30,7 @@ class PortalListener(private val plugin: LightWeightRW) : Listener {
                 PlayerTeleportEvent.TeleportCause.END_PORTAL -> {
                     if (plugin.configManager.isEndDisabled()) {
                         event.isCancelled = true
-                        val message = plugin.languageManager.getMessage("portal-end-disabled", player)
+                        val message = plugin.languageManager.getMessage("portal-end-disabled", emptyMap())
                         player.sendMessage(message)
                     }
                 }

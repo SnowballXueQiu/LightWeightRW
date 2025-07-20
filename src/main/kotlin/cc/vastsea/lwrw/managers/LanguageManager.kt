@@ -1,17 +1,15 @@
 package cc.vastsea.lwrw.managers
 
 import cc.vastsea.lwrw.LightWeightRW
+import org.bukkit.command.CommandSender
 import org.bukkit.configuration.file.FileConfiguration
 import org.bukkit.configuration.file.YamlConfiguration
-import org.bukkit.entity.Player
 import java.io.File
 import java.io.InputStream
-import java.util.*
 
 class LanguageManager(private val plugin: LightWeightRW) {
 
     private val languages = mutableMapOf<String, FileConfiguration>()
-    private val playerLanguages = mutableMapOf<UUID, String>()
 
     fun loadLanguages() {
         val langFolder = File(plugin.dataFolder, "lang")
@@ -51,45 +49,22 @@ class LanguageManager(private val plugin: LightWeightRW) {
         }
     }
 
-    fun getMessage(key: String, player: Player? = null, vararg args: Any): String {
-        val langCode = getPlayerLanguage(player)
-        val config = languages[langCode] ?: languages[plugin.configManager.getDefaultLanguage()]
-        ?: return "Missing message: $key"
+    fun getMessage(key: String, placeholders: Map<String, Any?> = emptyMap()): String {
+        val langCode = plugin.configManager.getDefaultLanguage()
+        val config = languages[langCode] ?: return "Missing message: $key"
 
         var message = config.getString(key) ?: return "Missing message: $key"
 
         // 替换占位符
-        args.forEachIndexed { index, arg ->
-            message = message.replace("{$index}", arg.toString())
-        }
-
-        // 替换命名占位符
-        if (args.isNotEmpty() && args[0] is Map<*, *>) {
-            @Suppress("UNCHECKED_CAST")
-            val placeholders = args[0] as Map<String, Any>
-            placeholders.forEach { (placeholder, value) ->
-                message = message.replace("{$placeholder}", value.toString())
-            }
+        placeholders.forEach { (k, v) ->
+            message = message.replace("{$k}", v?.toString() ?: "")
         }
 
         return message.replace("&", "§")
     }
 
-    fun getPlayerLanguage(player: Player?): String {
-        if (player == null || !plugin.configManager.isPerPlayerLanguage()) {
-            return plugin.configManager.getDefaultLanguage()
-        }
-
-        return playerLanguages[player.uniqueId] ?: plugin.configManager.getDefaultLanguage()
+    fun sendMessage(receiver: CommandSender, key: String, placeholders: Map<String, Any?> = emptyMap()) {
+        receiver.sendMessage(getMessage(key, placeholders))
     }
 
-    fun setPlayerLanguage(player: Player, langCode: String) {
-        if (languages.containsKey(langCode)) {
-            playerLanguages[player.uniqueId] = langCode
-        }
-    }
-
-    fun getAvailableLanguages(): Set<String> = languages.keys
-
-    fun isLanguageAvailable(langCode: String): Boolean = languages.containsKey(langCode)
 }

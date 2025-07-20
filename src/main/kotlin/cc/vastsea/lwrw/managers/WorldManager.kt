@@ -2,18 +2,23 @@ package cc.vastsea.lwrw.managers
 
 import cc.vastsea.lwrw.LightWeightRW
 import org.bukkit.*
-import org.bukkit.entity.Player
 import java.io.File
-import java.util.*
 import kotlin.random.Random
 
 class WorldManager(private val plugin: LightWeightRW) {
 
-    private val teleportCooldowns = mutableMapOf<UUID, Long>()
-
     private fun getResourceWorld(): World? {
         val worldName = plugin.configManager.getResourceWorldName()
-        return Bukkit.getWorld(worldName) ?: createResourceWorld()
+        val world = Bukkit.getWorld(worldName)
+        if (world != null) return world
+        // 保证在主线程创建世界
+        return if (!Bukkit.isPrimaryThread()) {
+            plugin.server.scheduler.callSyncMethod(plugin) {
+                createResourceWorld()
+            }.get()
+        } else {
+            createResourceWorld()
+        }
     }
 
     private fun createResourceWorld(): World? {
@@ -49,42 +54,21 @@ class WorldManager(private val plugin: LightWeightRW) {
         return world
     }
 
-    fun teleportToResourceWorld(player: Player): Boolean {
-        // 检查冷却时间
-        if (!checkCooldown(player)) {
-            val remainingTime = getRemainingCooldown(player)
-            val message = plugin.languageManager.getMessage(
-                "teleport-cooldown",
-                player,
-                mapOf("time" to remainingTime)
-            )
-            player.sendMessage(message)
-            return false
-        }
-
+    /**
+     * 查找安全位置并返回，主线程调用此方法进行传送
+     */
+    fun findSafeLocationForTeleport(): Pair<Location?, String?> {
         val world = getResourceWorld()
         if (world == null) {
-            val message = plugin.languageManager.getMessage("world-not-found", player)
-            player.sendMessage(message)
-            return false
+            val message = plugin.languageManager.getMessage("world-not-found")
+            return Pair(null, message)
         }
-
-        // 寻找安全的传送位置
         val safeLocation = findSafeLocation(world)
         if (safeLocation == null) {
-            val message = plugin.languageManager.getMessage("teleport-unsafe", player)
-            player.sendMessage(message)
-            return false
+            val message = plugin.languageManager.getMessage("teleport-unsafe")
+            return Pair(null, message)
         }
-
-        // 执行传送
-        player.teleport(safeLocation)
-        setCooldown(player)
-
-        val message = plugin.languageManager.getMessage("teleport-success", player)
-        player.sendMessage(message)
-
-        return true
+        return Pair(safeLocation, null)
     }
 
     private fun findSafeLocation(world: World): Location? {
@@ -130,46 +114,30 @@ class WorldManager(private val plugin: LightWeightRW) {
         return feetBlock.type.isAir && headBlock.type.isAir
     }
 
-    private fun checkCooldown(player: Player): Boolean {
-        if (player.hasPermission("lwrw.admin.bypass")) {
-            return true
-        }
-
-        val lastTeleport = teleportCooldowns[player.uniqueId] ?: 0L
-        val cooldownTime = plugin.configManager.getTeleportCooldown() * 1000L
-
-        return System.currentTimeMillis() - lastTeleport >= cooldownTime
-    }
-
-    private fun getRemainingCooldown(player: Player): Long {
-        val lastTeleport = teleportCooldowns[player.uniqueId] ?: 0L
-        val cooldownTime = plugin.configManager.getTeleportCooldown() * 1000L
-        val remaining = cooldownTime - (System.currentTimeMillis() - lastTeleport)
-
-        return (remaining / 1000L).coerceAtLeast(0L)
-    }
-
-    private fun setCooldown(player: Player) {
-        if (!player.hasPermission("lwrw.admin.bypass")) {
-            teleportCooldowns[player.uniqueId] = System.currentTimeMillis()
-        }
-    }
-
     fun resetResourceWorld(): Boolean {
         val worldName = plugin.configManager.getResourceWorldName()
         val world = Bukkit.getWorld(worldName)
 
         if (world != null) {
-            // 踢出所有玩家
+            // 踢出所有玩家（主线程）
             if (plugin.configManager.shouldKickPlayersOnReset()) {
-                world.players.forEach { player ->
-                    val spawnWorld = Bukkit.getWorlds()
-                        .firstOrNull { it.environment == World.Environment.NORMAL && it.name != worldName }
-                    if (spawnWorld != null) {
-                        player.teleport(spawnWorld.spawnLocation)
-                        val message = plugin.languageManager.getMessage("reset-kicked", player)
-                        player.sendMessage(message)
+                val kickPlayers: (World) -> Unit = { w ->
+                    w.players.forEach { player ->
+                        val spawnWorld = Bukkit.getWorlds()
+                            .firstOrNull { it.environment == World.Environment.NORMAL && it.name != worldName }
+                        if (spawnWorld != null) {
+                            player.teleport(spawnWorld.spawnLocation)
+                            val message = plugin.languageManager.getMessage("reset-kicked")
+                            player.sendMessage(message)
+                        }
                     }
+                }
+                if (!Bukkit.isPrimaryThread()) {
+                    plugin.server.scheduler.callSyncMethod(plugin) {
+                        kickPlayers(world)
+                    }.get()
+                } else {
+                    kickPlayers(world)
                 }
             }
 

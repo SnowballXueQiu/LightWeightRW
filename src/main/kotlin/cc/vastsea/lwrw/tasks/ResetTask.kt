@@ -80,14 +80,12 @@ class ResetTask(private val plugin: LightWeightRW) {
             val playerMessage = if (minutes >= 1) {
                 plugin.languageManager.getMessage(
                     "reset-warning",
-                    player,
                     mapOf("time" to minutes)
                 )
             } else {
                 val seconds = minutes * 60
                 plugin.languageManager.getMessage(
                     "reset-warning-seconds",
-                    player,
                     mapOf("time" to seconds)
                 )
             }
@@ -106,7 +104,7 @@ class ResetTask(private val plugin: LightWeightRW) {
                 if (success) {
                     // 向所有在线玩家发送重置完成消息
                     plugin.server.onlinePlayers.forEach { player ->
-                        val message = plugin.languageManager.getMessage("reset-complete", player)
+                        val message = plugin.languageManager.getMessage("reset-complete")
                         player.sendMessage(message)
                     }
 

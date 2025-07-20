@@ -6,8 +6,11 @@ import org.bukkit.command.CommandExecutor
 import org.bukkit.command.CommandSender
 import org.bukkit.command.TabCompleter
 import org.bukkit.entity.Player
+import java.util.*
 
 class ResourceWorldCommand(private val plugin: LightWeightRW) : CommandExecutor, TabCompleter {
+    // 记录玩家上次/rw tp前的位置
+    private val lastLocations = mutableMapOf<UUID, org.bukkit.Location>()
 
     override fun onCommand(sender: CommandSender, command: Command, label: String, args: Array<out String>): Boolean {
         if (args.isEmpty()) {
@@ -20,9 +23,9 @@ class ResourceWorldCommand(private val plugin: LightWeightRW) : CommandExecutor,
             "tp", "teleport" -> handleTeleport(sender)
             "reset" -> handleReset(sender)
             "reload" -> handleReload(sender)
-            "lang", "language" -> handleLanguage(sender, args)
+            "back" -> handleBack(sender)
             else -> {
-                val message = plugin.languageManager.getMessage("invalid-args", sender as? Player)
+                val message = plugin.languageManager.getMessage("invalid-args", emptyMap())
                 sender.sendMessage(message)
             }
         }
@@ -31,22 +34,17 @@ class ResourceWorldCommand(private val plugin: LightWeightRW) : CommandExecutor,
     }
 
     private fun showHelp(sender: CommandSender) {
-        val player = sender as? Player
 
-        sender.sendMessage(plugin.languageManager.getMessage("help-header", player))
-        sender.sendMessage(plugin.languageManager.getMessage("help-tp", player))
+        sender.sendMessage(plugin.languageManager.getMessage("help-header", emptyMap()))
+        sender.sendMessage(plugin.languageManager.getMessage("help-tp", emptyMap()))
 
         if (sender.hasPermission("lwrw.admin")) {
-            sender.sendMessage(plugin.languageManager.getMessage("help-reset", player))
-            sender.sendMessage(plugin.languageManager.getMessage("help-reload", player))
+            sender.sendMessage(plugin.languageManager.getMessage("help-reset", emptyMap()))
+            sender.sendMessage(plugin.languageManager.getMessage("help-reload", emptyMap()))
         }
 
-        if (plugin.configManager.isPerPlayerLanguage()) {
-            sender.sendMessage(plugin.languageManager.getMessage("help-lang", player))
-        }
-
-        sender.sendMessage(plugin.languageManager.getMessage("help-help", player))
-        sender.sendMessage(plugin.languageManager.getMessage("help-footer", player))
+        sender.sendMessage(plugin.languageManager.getMessage("help-help", emptyMap()))
+        sender.sendMessage(plugin.languageManager.getMessage("help-footer", emptyMap()))
     }
 
     private fun handleTeleport(sender: CommandSender) {
@@ -56,32 +54,38 @@ class ResourceWorldCommand(private val plugin: LightWeightRW) : CommandExecutor,
         }
 
         if (!sender.hasPermission("lwrw.use.tp")) {
-            sender.sendMessage(plugin.languageManager.getMessage("no-permission", sender))
+            sender.sendMessage(plugin.languageManager.getMessage("no-permission", emptyMap()))
             return
         }
 
-        sender.sendMessage(plugin.languageManager.getMessage("teleport-searching", sender))
+        sender.sendMessage(plugin.languageManager.getMessage("teleport-searching", emptyMap()))
 
-        // 异步执行传送以避免阻塞主线程
+        // 异步查找安全位置，主线程传送
         plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
-            val success = plugin.worldManager.teleportToResourceWorld(sender)
-            if (!success) {
-                plugin.server.scheduler.runTask(plugin, Runnable {
-                    sender.sendMessage(plugin.languageManager.getMessage("teleport-failed", sender))
-                })
-            }
+            val (safeLocation, failMessage) = plugin.worldManager.findSafeLocationForTeleport()
+            plugin.server.scheduler.runTask(plugin, Runnable {
+                if (safeLocation != null) {
+                    // 记录玩家传送前的位置
+                    lastLocations[sender.uniqueId] = sender.location.clone()
+                    sender.teleport(safeLocation)
+                    plugin.worldManager.javaClass.getDeclaredMethod("setCooldown", Player::class.java)
+                        .apply { isAccessible = true }.invoke(plugin.worldManager, sender)
+                    sender.sendMessage(plugin.languageManager.getMessage("teleport-success", emptyMap()))
+                } else {
+                    sender.sendMessage(failMessage ?: plugin.languageManager.getMessage("teleport-failed", emptyMap()))
+                }
+            })
         })
     }
 
     private fun handleReset(sender: CommandSender) {
         if (!sender.hasPermission("lwrw.admin.reset")) {
-            val message = plugin.languageManager.getMessage("no-permission", sender as? Player)
+            val message = plugin.languageManager.getMessage("no-permission", emptyMap())
             sender.sendMessage(message)
             return
         }
 
-        val player = sender as? Player
-        sender.sendMessage(plugin.languageManager.getMessage("reset-started", player))
+        sender.sendMessage(plugin.languageManager.getMessage("reset-started", emptyMap()))
 
         // 异步执行重置以避免阻塞主线程
         plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
@@ -89,14 +93,14 @@ class ResourceWorldCommand(private val plugin: LightWeightRW) : CommandExecutor,
 
             plugin.server.scheduler.runTask(plugin, Runnable {
                 if (success) {
-                    sender.sendMessage(plugin.languageManager.getMessage("reset-manual-success", player))
+                    sender.sendMessage(plugin.languageManager.getMessage("reset-manual-success", emptyMap()))
 
                     // 广播重置消息
                     plugin.server.onlinePlayers.forEach { onlinePlayer ->
-                        onlinePlayer.sendMessage(plugin.languageManager.getMessage("reset-complete", onlinePlayer))
+                        onlinePlayer.sendMessage(plugin.languageManager.getMessage("reset-complete", emptyMap()))
                     }
                 } else {
-                    sender.sendMessage(plugin.languageManager.getMessage("reset-manual-failed", player))
+                    sender.sendMessage(plugin.languageManager.getMessage("reset-manual-failed", emptyMap()))
                 }
             })
         })
@@ -104,64 +108,46 @@ class ResourceWorldCommand(private val plugin: LightWeightRW) : CommandExecutor,
 
     private fun handleReload(sender: CommandSender) {
         if (!sender.hasPermission("lwrw.admin.reload")) {
-            val message = plugin.languageManager.getMessage("no-permission", sender as? Player)
+            val message = plugin.languageManager.getMessage("no-permission", emptyMap())
             sender.sendMessage(message)
             return
         }
 
         try {
             plugin.reload()
-            val message = plugin.languageManager.getMessage("config-reloaded", sender as? Player)
+            val message = plugin.languageManager.getMessage("config-reloaded", emptyMap())
             sender.sendMessage(message)
         } catch (e: Exception) {
-            val message = plugin.languageManager.getMessage("config-reload-failed", sender as? Player)
+            val message = plugin.languageManager.getMessage("config-reload-failed", emptyMap())
             sender.sendMessage(message)
             plugin.logger.severe("Failed to reload configuration: ${e.message}")
         }
     }
 
-    private fun handleLanguage(sender: CommandSender, args: Array<out String>) {
+    private fun handleBack(sender: CommandSender) {
         if (sender !is Player) {
             sender.sendMessage(plugin.languageManager.getMessage("player-only"))
             return
         }
-
-        if (!plugin.configManager.isPerPlayerLanguage()) {
-            sender.sendMessage(plugin.languageManager.getMessage("invalid-args", sender))
+        if (!sender.hasPermission("lwrw.use.back")) {
+            sender.sendMessage(plugin.languageManager.getMessage("no-permission", emptyMap()))
             return
         }
-
-        if (args.size < 2) {
-            val availableLanguages = plugin.languageManager.getAvailableLanguages().joinToString(", ")
-            val message = plugin.languageManager.getMessage(
-                "language-invalid",
-                sender,
-                mapOf("languages" to availableLanguages)
-            )
-            sender.sendMessage(message)
+        val resourceWorld = plugin.server.getWorld(plugin.configManager.getResourceWorldName())
+        if (sender.world != resourceWorld) {
+            sender.sendMessage(plugin.languageManager.getMessage("back-only-in-resource-world", emptyMap()))
             return
         }
-
-        val langCode = args[1]
-
-        if (!plugin.languageManager.isLanguageAvailable(langCode)) {
-            val availableLanguages = plugin.languageManager.getAvailableLanguages().joinToString(", ")
-            val message = plugin.languageManager.getMessage(
-                "language-invalid",
-                sender,
-                mapOf("languages" to availableLanguages)
-            )
-            sender.sendMessage(message)
-            return
+        val lastLoc = lastLocations[sender.uniqueId]
+        if (lastLoc != null) {
+            plugin.server.scheduler.runTask(plugin, Runnable {
+                sender.teleport(lastLoc)
+                sender.sendMessage(plugin.languageManager.getMessage("teleport-back-success", emptyMap()))
+            })
+            lastLocations.remove(sender.uniqueId)
+        } else {
+            sender.sendMessage(plugin.languageManager.getMessage("back-no-location", emptyMap()))
         }
-
-        plugin.languageManager.setPlayerLanguage(sender, langCode)
-        val message = plugin.languageManager.getMessage(
-            "language-changed",
-            sender,
-            mapOf("language" to langCode)
-        )
-        sender.sendMessage(message)
     }
 
     override fun onTabComplete(
@@ -171,24 +157,15 @@ class ResourceWorldCommand(private val plugin: LightWeightRW) : CommandExecutor,
         args: Array<out String>
     ): List<String> {
         if (args.size == 1) {
-            val subcommands = mutableListOf("help", "tp")
+            val subcommands = mutableListOf("help", "tp", "back")
 
             if (sender.hasPermission("lwrw.admin")) {
                 subcommands.addAll(listOf("reset", "reload"))
             }
 
-            if (plugin.configManager.isPerPlayerLanguage() && sender is Player) {
-                subcommands.add("lang")
-            }
-
             return subcommands.filter { it.startsWith(args[0].lowercase()) }
         }
 
-        if (args.size == 2 && args[0].lowercase() in listOf("lang", "language")) {
-            return plugin.languageManager.getAvailableLanguages().filter {
-                it.startsWith(args[1], ignoreCase = true)
-            }
-        }
 
         return emptyList()
     }
