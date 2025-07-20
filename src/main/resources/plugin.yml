@@ -1,0 +1,47 @@
+name: LightWeightRW
+version: '1.0.0'
+main: cc.vastsea.lwrw.LightWeightRW
+api-version: '1.20'
+author: Snowball_233
+description: A lightweight resource world plugin for Paper/Spigot/Bukkit
+website: https://github.com/Snowball-233/LightWeightRW
+
+commands:
+  rw:
+    description: Main resource world command
+    usage: /rw [help|tp|reset|reload]
+    aliases: [ resourceworld, lwrs ]
+    permission: lwrw.use
+    permission-message: "§cYou don't have permission to use this command!"
+
+permissions:
+  lwrw.*:
+    description: All LightWeightRW permissions
+    children:
+      lwrw.admin: true
+      lwrw.use: true
+    default: op
+  lwrw.admin:
+    description: Admin permissions for LightWeightRW
+    children:
+      lwrw.admin.reset: true
+      lwrw.admin.reload: true
+      lwrw.admin.bypass: true
+    default: op
+  lwrw.admin.reset:
+    description: Permission to reset resource world
+    default: op
+  lwrw.admin.reload:
+    description: Permission to reload plugin configuration
+    default: op
+  lwrw.admin.bypass:
+    description: Permission to bypass cooldowns and restrictions
+    default: op
+  lwrw.use:
+    description: Basic permission to use resource world
+    children:
+      lwrw.use.tp: true
+    default: true
+  lwrw.use.tp:
+    description: Permission to teleport to resource world
+    default: true
