@@ -58,24 +58,40 @@ class ResourceWorldCommand(private val plugin: LightWeightRW) : CommandExecutor,
             return
         }
 
-        sender.sendMessage(plugin.languageManager.getMessage("teleport-searching", emptyMap()))
+        // 检查玩家是否已经在资源世界中
+        if (plugin.worldManager.isResourceWorld(sender.world)) {
+            // 如果已经在资源世界，直接进行随机传送
+            sender.sendMessage(plugin.languageManager.getMessage("teleport-searching", emptyMap()))
 
-        // 异步查找安全位置，主线程传送
-        plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
-            val (safeLocation, failMessage) = plugin.worldManager.findSafeLocationForTeleport()
-            plugin.server.scheduler.runTask(plugin, Runnable {
-                if (safeLocation != null) {
-                    // 记录玩家传送前的位置
-                    lastLocations[sender.uniqueId] = sender.location.clone()
-                    sender.teleport(safeLocation)
-                    plugin.worldManager.javaClass.getDeclaredMethod("setCooldown", Player::class.java)
-                        .apply { isAccessible = true }.invoke(plugin.worldManager, sender)
-                    sender.sendMessage(plugin.languageManager.getMessage("teleport-success", emptyMap()))
-                } else {
-                    sender.sendMessage(failMessage ?: plugin.languageManager.getMessage("teleport-failed", emptyMap()))
-                }
+            plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
+                val (safeLocation, failMessage) = plugin.worldManager.findSafeLocationForTeleport()
+                plugin.server.scheduler.runTask(plugin, Runnable {
+                    if (safeLocation != null) {
+                        sender.teleport(safeLocation)
+                        sender.sendMessage(plugin.languageManager.getMessage("teleport-success", emptyMap()))
+                    } else {
+                        sender.sendMessage(failMessage ?: plugin.languageManager.getMessage("teleport-failed", emptyMap()))
+                    }
+                })
             })
-        })
+        } else {
+            // 如果不在资源世界，传送到资源世界
+            sender.sendMessage(plugin.languageManager.getMessage("teleport-searching", emptyMap()))
+
+            plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
+                val (safeLocation, failMessage) = plugin.worldManager.findSafeLocationForTeleport()
+                plugin.server.scheduler.runTask(plugin, Runnable {
+                    if (safeLocation != null) {
+                        // 记录玩家传送前的位置（只在从其他世界传送到资源世界时记录）
+                        lastLocations[sender.uniqueId] = sender.location.clone()
+                        sender.teleport(safeLocation)
+                        sender.sendMessage(plugin.languageManager.getMessage("teleport-success", emptyMap()))
+                    } else {
+                        sender.sendMessage(failMessage ?: plugin.languageManager.getMessage("teleport-failed", emptyMap()))
+                    }
+                })
+            })
+        }
     }
 
     private fun handleReset(sender: CommandSender) {
