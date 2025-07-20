@@ -11,7 +11,7 @@ class WorldManager(private val plugin: LightWeightRW) {
 
     private val teleportCooldowns = mutableMapOf<UUID, Long>()
 
-    fun getResourceWorld(): World? {
+    private fun getResourceWorld(): World? {
         val worldName = plugin.configManager.getResourceWorldName()
         return Bukkit.getWorld(worldName) ?: createResourceWorld()
     }
@@ -173,8 +173,14 @@ class WorldManager(private val plugin: LightWeightRW) {
                 }
             }
 
-            // 卸载世界
-            Bukkit.unloadWorld(world, false)
+            // 卸载世界，必须在主线程
+            if (!Bukkit.isPrimaryThread()) {
+                plugin.server.scheduler.callSyncMethod(plugin) {
+                    Bukkit.unloadWorld(world, false)
+                }.get()
+            } else {
+                Bukkit.unloadWorld(world, false)
+            }
 
             // 删除世界文件
             val worldFolder = File(Bukkit.getWorldContainer(), worldName)
@@ -183,8 +189,14 @@ class WorldManager(private val plugin: LightWeightRW) {
             }
         }
 
-        // 重新创建世界
-        val newWorld = createResourceWorld()
+        // 重新创建世界，必须在主线程
+        val newWorld = if (!Bukkit.isPrimaryThread()) {
+            plugin.server.scheduler.callSyncMethod(plugin) {
+                createResourceWorld()
+            }.get()
+        } else {
+            createResourceWorld()
+        }
         return newWorld != null
     }
 

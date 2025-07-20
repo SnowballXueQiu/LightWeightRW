@@ -75,21 +75,6 @@ class ResetTask(private val plugin: LightWeightRW) {
     }
 
     private fun sendResetWarning(minutes: Int) {
-        val message = if (minutes >= 1) {
-            plugin.languageManager.getMessage(
-                "reset-warning",
-                null,
-                mapOf("time" to minutes)
-            )
-        } else {
-            val seconds = minutes * 60
-            plugin.languageManager.getMessage(
-                "reset-warning-seconds",
-                null,
-                mapOf("time" to seconds)
-            )
-        }
-
         // 向所有在线玩家发送警告
         plugin.server.onlinePlayers.forEach { player ->
             val playerMessage = if (minutes >= 1) {
@@ -108,8 +93,6 @@ class ResetTask(private val plugin: LightWeightRW) {
             }
             player.sendMessage(playerMessage)
         }
-
-        plugin.logger.info("Reset warning sent: $minutes minutes remaining")
     }
 
     private fun performReset() {
@@ -158,21 +141,4 @@ class ResetTask(private val plugin: LightWeightRW) {
         }
     }
 
-    fun getNextResetTime(): LocalDateTime? {
-        if (!plugin.configManager.isAutoResetEnabled()) {
-            return null
-        }
-
-        val resetTimeString = plugin.configManager.getResetTime()
-        val resetTime = parseTime(resetTimeString) ?: return null
-
-        val now = LocalDateTime.now()
-        var nextReset = now.toLocalDate().atTime(resetTime)
-
-        if (nextReset.isBefore(now) || nextReset.isEqual(now)) {
-            nextReset = nextReset.plusDays(1)
-        }
-
-        return nextReset
-    }
 }
